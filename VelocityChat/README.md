@@ -13,7 +13,7 @@
 
 Chat together across your entire server network. Install **only on the Velocity proxy** — no backend server plugins required.
 
-## ✨ Features
+## Features
 
 - **Cross-server broadcast** — `/br <message>` sends a chat message to every player on every backend server
 - **Server invites** — `/yq [message]` broadcasts a server invite into the cross-server chat; other players click it to join the inviter's server (configurable cooldown & permission bypass)
@@ -28,7 +28,7 @@ Chat together across your entire server network. Install **only on the Velocity 
 - **Message visibility** — join/switch/leave alerts can be shown to everyone, admins only, or disabled
 - **Bilingual** — built-in `zh_CN` (Simplified Chinese) and `en_US` (English) language files, switchable at runtime
 
-## ✅ Requirements
+## Requirements
 
 | Requirement | Version |
 |---|---|
@@ -36,7 +36,7 @@ Chat together across your entire server network. Install **only on the Velocity 
 | Proxy | Velocity 3.x (all modern versions) |
 | Optional | A permissions plugin (e.g. [LuckPerms](https://luckperms.net)) for granular admin permissions |
 
-## 📦 Installation
+## Installation
 
 1. Download the plugin JAR (build it yourself or grab a release)
 2. Drop it into the `plugins/` folder of your Velocity proxy
@@ -45,7 +45,7 @@ Chat together across your entire server network. Install **only on the Velocity 
 
 > **No backend plugins needed** — this runs entirely on the proxy.
 
-## 🎮 Commands
+## Commands
 
 ### Player commands
 
@@ -68,7 +68,7 @@ Chat together across your entire server network. Install **only on the Velocity 
 
 Titles support `&` color codes, e.g. `/vchat create group admin &c&l[Admin]`.
 
-## 🔑 Permissions
+## Permissions
 
 | Permission | Description |
 |---|---|
@@ -84,7 +84,7 @@ Titles support `&` color codes, e.g. `/vchat create group admin &c&l[Admin]`.
 
 > **Tip:** LuckPerms example — `/lpv user <player> permission set velocitychat.admin true`
 
-## ⚙️ Configuration (`config.yml`)
+## Configuration (`config.yml`)
 
 Key settings (all commented in the generated file):
 
@@ -106,7 +106,7 @@ Key settings (all commented in the generated file):
 
 Group data is stored in a `groups.yml` file. Banned words live in `banned_words.txt`, and timed announcements are configured in `auto_broadcast.yml` (all generated on first startup).
 
-## 🔨 Building from source
+## Building from source
 
 JDK 17+ and Maven 3.8+ are required.
 
@@ -118,15 +118,15 @@ mvn package
 
 The built plugin is at `target/VelocityChat-2.1.0.jar`.
 
-## 📜 Changelog
+## Changelog
 
 See [更新日志-CHANGELOG.md](更新日志-CHANGELOG.md) for the full version history.
 
-## 👤 Author
+## Author
 
 - **YuHongChen (LiquidTeam)** — main developer
 - QQ: `1464670605`
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](../../LICENSE).
