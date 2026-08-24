@@ -1,0 +1,47 @@
+# ============================================================
+# VelocityChat — 定时消息 / Auto Broadcast
+# ============================================================
+# 每条消息可单独设置播放方式。支持两种模式：
+# Each message can be scheduled independently. Two modes are supported:
+#
+#  1) 定时模式：指定播放时刻(time)与循环方式(repeat)
+#     Clock-time mode: play time (time) + recurrence (repeat)
+#       time    : "HH:mm"（24 小时制，也可写 "9:00"）/ 24-hour, "9:00" works
+#       repeat  : daily   - 每天循环 / every day
+#                 weekly  - 每周指定星期循环 / weekly on `weekday`
+#                 monthly - 每月指定日期循环 / monthly on `day`
+#                 once    - 仅播放一次 / play once
+#       weekday : 每周循环用的星期 1-7（1=周一 … 7=周日）/ 1-7 (1=Mon ... 7=Sun)
+#       day     : 每月循环用的日期 1-31（超出当月天数则取当月最后一天）
+#                 day of month 1-31 (clamped to last day of the month)
+#
+#  2) 间隔模式：不写 time，repeat 用时长格式，每隔这么久循环一次
+#     Interval mode: omit time, repeat is a duration (loops every X)
+#       repeat  : "xxhxxminxxs"，例如 "30min"、"1h30min"、"45s"、"2h"
+#                 e.g. "30min", "1h30min", "45s", "2h"
+#
+# 消息内容支持 & 颜色代码与 {online} 占位符（当前在线玩家数）。
+# Messages support & color codes and the {online} placeholder (online count).
+# 修改后执行 /vchat reload 生效 / Run /vchat reload after editing.
+
+# 是否开启定时消息（默认关闭）/ Enable the auto broadcast (off by default)
+enabled: false
+
+# 定时消息列表 / Scheduled message list
+messages:
+  - time: "09:00"
+    repeat: daily
+    message: "&e早上好，新的一天开始啦！"
+
+  - time: "20:30"
+    repeat: weekly
+    weekday: 7
+    message: "&c周日晚上好，一周辛苦啦！"
+
+  - time: "10:00"
+    repeat: monthly
+    day: 1
+    message: "&6每月 1 日提醒！"
+
+  - repeat: 30min
+    message: "&a跨服聊天使用 &b/br <消息> &a（每 30 分钟循环一次）"

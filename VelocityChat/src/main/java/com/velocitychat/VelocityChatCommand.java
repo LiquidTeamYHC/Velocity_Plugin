@@ -4,7 +4,6 @@ import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-import net.kyori.adventure.text.Component;
 import org.slf4j.Logger;
 
 import java.util.*;
@@ -29,12 +28,17 @@ public class VelocityChatCommand implements SimpleCommand {
     private final ProxyServer server;
     private final GroupManager groupManager;
     private final ConfigManager config;
+    private final ForbiddenWordsManager forbiddenWords;
+    private final AutoBroadcast autoBroadcast;
     private final Logger logger;
 
-    public VelocityChatCommand(ProxyServer server, GroupManager groupManager, ConfigManager config, Logger logger) {
+    public VelocityChatCommand(ProxyServer server, GroupManager groupManager, ConfigManager config,
+                               ForbiddenWordsManager forbiddenWords, AutoBroadcast autoBroadcast, Logger logger) {
         this.server = server;
         this.groupManager = groupManager;
         this.config = config;
+        this.forbiddenWords = forbiddenWords;
+        this.autoBroadcast = autoBroadcast;
         this.logger = logger;
     }
 
@@ -120,7 +124,7 @@ public class VelocityChatCommand implements SimpleCommand {
 
     private void handleCreate(CommandSource source, String[] args) {
         if (args.length < 3 || !args[1].equalsIgnoreCase("group")) {
-            source.sendMessage(Component.text("§c用法: /velocitychat create group <名称> [称号]"));
+            ColorUtils.sendMessage(source, logger, "§c用法: /velocitychat create group <名称> [称号]");
             return;
         }
 
@@ -134,18 +138,18 @@ public class VelocityChatCommand implements SimpleCommand {
         }
 
         if (groupManager.createGroup(groupName, title)) {
-            source.sendMessage(Component.text("§a群组 '" + groupName + "' 创建成功！"));
+            ColorUtils.sendMessage(source, logger, "§a群组 '" + groupName + "' 创建成功！");
             if (!title.isEmpty()) {
-                source.sendMessage(Component.text("§7称号: " + title));
+                ColorUtils.sendMessage(source, logger, "§7称号: " + title);
             }
         } else {
-            source.sendMessage(Component.text("§c群组 '" + groupName + "' 已存在！"));
+            ColorUtils.sendMessage(source, logger, "§c群组 '" + groupName + "' 已存在！");
         }
     }
 
     private void handleGroup(CommandSource source, String[] args) {
         if (args.length < 2) {
-            source.sendMessage(Component.text("§c用法: /velocitychat group <名称> join/remove/settitle/delete/list [玩家] [称号]"));
+            ColorUtils.sendMessage(source, logger, "§c用法: /velocitychat group <名称> join/remove/settitle/delete/list [玩家] [称号]");
             return;
         }
 
@@ -158,7 +162,7 @@ public class VelocityChatCommand implements SimpleCommand {
         String groupName = args[1];
 
         if (!groupManager.groupExists(groupName)) {
-            source.sendMessage(Component.text("§c群组 '" + groupName + "' 不存在！"));
+            ColorUtils.sendMessage(source, logger, "§c群组 '" + groupName + "' 不存在！");
             return;
         }
 
@@ -167,10 +171,10 @@ public class VelocityChatCommand implements SimpleCommand {
             GroupManager.Group group = groupManager.getGroup(groupName);
             if (group != null) {
                 String titleDisplay = group.getTitle().isEmpty() ? "§7无" : group.getTitle();
-                source.sendMessage(Component.text("§6=== 群组: " + group.getName() + " ==="));
-                source.sendMessage(Component.text("§7称号: " + titleDisplay));
-                source.sendMessage(Component.text("§7成员 (" + group.getMembers().size() + "): " +
-                        String.join("§7, ", group.getMembers())));
+                ColorUtils.sendMessage(source, logger, "§6=== 群组: " + group.getName() + " ===");
+                ColorUtils.sendMessage(source, logger, "§7称号: " + titleDisplay);
+                ColorUtils.sendMessage(source, logger, "§7成员 (" + group.getMembers().size() + "): " +
+                        String.join("§7, ", group.getMembers()));
             }
             return;
         }
@@ -181,33 +185,33 @@ public class VelocityChatCommand implements SimpleCommand {
             case "join" -> {
                 if (!checkPerm(source, "velocitychat.admin.group.join", "velocitychat.admin.group.*", "velocitychat.admin")) { noPermission(source); return; }
                 if (args.length < 4) {
-                    source.sendMessage(Component.text("§c用法: /velocitychat group " + groupName + " join <玩家ID>"));
+                    ColorUtils.sendMessage(source, logger, "§c用法: /velocitychat group " + groupName + " join <玩家ID>");
                     return;
                 }
                 String playerName = args[3];
                 if (groupManager.addMember(groupName, playerName)) {
-                    source.sendMessage(Component.text("§a已将 '" + playerName + "' 添加到群组 '" + groupName + "'"));
+                    ColorUtils.sendMessage(source, logger, "§a已将 '" + playerName + "' 添加到群组 '" + groupName + "'");
                 } else {
-                    source.sendMessage(Component.text("§c群组 '" + groupName + "' 不存在！"));
+                    ColorUtils.sendMessage(source, logger, "§c群组 '" + groupName + "' 不存在！");
                 }
             }
             case "remove" -> {
                 if (!checkPerm(source, "velocitychat.admin.group.remove", "velocitychat.admin.group.*", "velocitychat.admin")) { noPermission(source); return; }
                 if (args.length < 4) {
-                    source.sendMessage(Component.text("§c用法: /velocitychat group " + groupName + " remove <玩家ID>"));
+                    ColorUtils.sendMessage(source, logger, "§c用法: /velocitychat group " + groupName + " remove <玩家ID>");
                     return;
                 }
                 String playerName = args[3];
                 if (groupManager.removeMember(playerName)) {
-                    source.sendMessage(Component.text("§a已将 '" + playerName + "' 从群组中移除"));
+                    ColorUtils.sendMessage(source, logger, "§a已将 '" + playerName + "' 从群组中移除");
                 } else {
-                    source.sendMessage(Component.text("§c玩家 '" + playerName + "' 不在任何群组中"));
+                    ColorUtils.sendMessage(source, logger, "§c玩家 '" + playerName + "' 不在任何群组中");
                 }
             }
             case "settitle" -> {
                 if (!checkPerm(source, "velocitychat.admin.group.settitle", "velocitychat.admin.group.*", "velocitychat.admin")) { noPermission(source); return; }
                 if (args.length < 4) {
-                    source.sendMessage(Component.text("§c用法: /velocitychat group " + groupName + " settitle <称号>"));
+                    ColorUtils.sendMessage(source, logger, "§c用法: /velocitychat group " + groupName + " settitle <称号>");
                     return;
                 }
                 String newTitle = ColorUtils.translate(String.join(" ", Arrays.copyOfRange(args, 3, args.length)));
@@ -215,22 +219,22 @@ public class VelocityChatCommand implements SimpleCommand {
                 if (group != null) {
                     group.setTitle(newTitle);
                     groupManager.save();
-                    source.sendMessage(Component.text("§a群组 '" + groupName + "' 的称号已更新为: " + newTitle));
+                    ColorUtils.sendMessage(source, logger, "§a群组 '" + groupName + "' 的称号已更新为: " + newTitle);
                 }
             }
             case "delete" -> {
                 if (!checkPerm(source, "velocitychat.admin.group.delete", "velocitychat.admin.group.*", "velocitychat.admin")) { noPermission(source); return; }
                 if (groupManager.deleteGroup(groupName)) {
-                    source.sendMessage(Component.text("§a群组 '" + groupName + "' 已删除"));
+                    ColorUtils.sendMessage(source, logger, "§a群组 '" + groupName + "' 已删除");
                 } else {
-                    source.sendMessage(Component.text("§c群组 '" + groupName + "' 不存在！"));
+                    ColorUtils.sendMessage(source, logger, "§c群组 '" + groupName + "' 不存在！");
                 }
             }
             case "list" -> {
                 if (!checkPerm(source, "velocitychat.admin.group.list", "velocitychat.admin.group.*", "velocitychat.admin")) { noPermission(source); return; }
                 handleList(source);
             }
-            default -> source.sendMessage(Component.text("§c未知操作。可用: join, remove, settitle, delete, list"));
+            default -> ColorUtils.sendMessage(source, logger, "§c未知操作。可用: join, remove, settitle, delete, list");
         }
     }
 
@@ -238,12 +242,12 @@ public class VelocityChatCommand implements SimpleCommand {
         Map<String, GroupManager.Group> allGroups = groupManager.getGroups();
 
         if (allGroups.isEmpty()) {
-            source.sendMessage(Component.text("§e当前没有已创建的群组。"));
-            source.sendMessage(Component.text("§7使用 /velocitychat create group <名称> [称号] 创建"));
+            ColorUtils.sendMessage(source, logger, "§e当前没有已创建的群组。");
+            ColorUtils.sendMessage(source, logger, "§7使用 /velocitychat create group <名称> [称号] 创建");
             return;
         }
 
-        source.sendMessage(Component.text("§6=== 群组列表 (" + allGroups.size() + " 个) ==="));
+        ColorUtils.sendMessage(source, logger, "§6=== 群组列表 (" + allGroups.size() + " 个) ===");
 
         for (GroupManager.Group group : allGroups.values()) {
             String titleDisplay = group.getTitle().isEmpty()
@@ -254,16 +258,19 @@ public class VelocityChatCommand implements SimpleCommand {
                     ? "§7(无成员)"
                     : "§7" + String.join("§7, ", group.getMembers());
 
-            source.sendMessage(Component.text("§e" + group.getName() + " §7- 称号: " + titleDisplay));
-            source.sendMessage(Component.text("  §8成员: " + membersDisplay));
+            ColorUtils.sendMessage(source, logger, "§e" + group.getName() + " §7- 称号: " + titleDisplay);
+            ColorUtils.sendMessage(source, logger, "  §8成员: " + membersDisplay);
         }
     }
 
     private void handleReload(CommandSource source) {
         config.reload();
         groupManager.load();
-        source.sendMessage(Component.text("§a配置文件、语言文件及群组数据已重载！"));
-        logger.info("Configuration and groups reloaded by " + source);
+        forbiddenWords.load(config);
+        autoBroadcast.load();
+        autoBroadcast.start();
+        ColorUtils.sendMessage(source, logger, "§a配置文件、语言文件、群组数据、违禁词列表及定时消息已重载！");
+        logger.info("Configuration, groups, forbidden words and auto broadcast reloaded by " + source);
     }
 
     // ── Permission Helper ─────────────────────────────────────
@@ -288,19 +295,19 @@ public class VelocityChatCommand implements SimpleCommand {
     // ── Help ─────────────────────────────────────────────────
 
     private void sendHelp(CommandSource source) {
-        source.sendMessage(Component.text("§6=== VelocityChat 管理指令 ==="));
-        source.sendMessage(Component.text("§7/vchat create group <名称> [称号] §f- 创建群组"));
-        source.sendMessage(Component.text("§7/vchat group <名称> join <玩家ID> §f- 添加成员"));
-        source.sendMessage(Component.text("§7/vchat group <名称> remove <玩家ID> §f- 移除成员"));
-        source.sendMessage(Component.text("§7/vchat group <名称> settitle <称号> §f- 修改称号"));
-        source.sendMessage(Component.text("§7/vchat group <名称> delete §f- 删除群组"));
-        source.sendMessage(Component.text("§7/vchat group list §f- 查看所有群组"));
-        source.sendMessage(Component.text("§7/vchat reload §f- 重载配置文件"));
-        source.sendMessage(Component.text("§7/vchat §f- 显示此帮助"));
+        ColorUtils.sendMessage(source, logger, "§6=== VelocityChat 管理指令 ===");
+        ColorUtils.sendMessage(source, logger, "§7/vchat create group <名称> [称号] §f- 创建群组");
+        ColorUtils.sendMessage(source, logger, "§7/vchat group <名称> join <玩家ID> §f- 添加成员");
+        ColorUtils.sendMessage(source, logger, "§7/vchat group <名称> remove <玩家ID> §f- 移除成员");
+        ColorUtils.sendMessage(source, logger, "§7/vchat group <名称> settitle <称号> §f- 修改称号");
+        ColorUtils.sendMessage(source, logger, "§7/vchat group <名称> delete §f- 删除群组");
+        ColorUtils.sendMessage(source, logger, "§7/vchat group list §f- 查看所有群组");
+        ColorUtils.sendMessage(source, logger, "§7/vchat reload §f- 重载配置文件");
+        ColorUtils.sendMessage(source, logger, "§7/vchat §f- 显示此帮助");
     }
 
     private void noPermission(CommandSource source) {
-        source.sendMessage(Component.text("§c你没有权限执行此命令！(需 velocitychat.admin)"));
+        ColorUtils.sendMessage(source, logger, "§c你没有权限执行此命令！(需 velocitychat.admin)");
     }
 
     private List<String> filterSuggestions(List<String> suggestions, String prefix) {

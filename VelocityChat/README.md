@@ -16,9 +16,12 @@ Chat together across your entire server network. Install **only on the Velocity 
 ## ✨ Features
 
 - **Cross-server broadcast** — `/br <message>` sends a chat message to every player on every backend server
+- **Server invites** — `/yq [message]` broadcasts a server invite into the cross-server chat; other players click it to join the inviter's server (configurable cooldown & permission bypass)
+- **Forbidden-word filter** — block `/br` and `/yq` messages containing banned words (configurable, words stored in `banned_words.txt` separated by `;`, admin bypass)
+- **Timed announcements** — schedule announcements by clock time with daily / weekly / monthly / one-shot recurrence, or loop on an interval like `30min` (configured in `auto_broadcast.yml`)
 - **Color codes** — full `&` color code support (`&c`, `&6`, `&l`, `&r`, …)
 - **Join / switch / leave announcements** — automatic messages when players join, switch servers, or disconnect
-- **Server aliases** — show friendly names like "登录服" instead of raw server IDs (e.g. `lobby`)
+- **Server aliases** — show friendly names like "登录服" instead of raw server IDs, configured directly in `config.yml` (`serverId: "&aDisplayName"`)
 - **Group titles** — create groups and assign title prefixes shown before player names in chat
 - **Granular permissions** — `velocitychat.admin.*` sub-nodes, works with LuckPerms (optional dependency)
 - **Broadcast cooldown** — optional anti-spam cooldown, admins can bypass
@@ -49,6 +52,7 @@ Chat together across your entire server network. Install **only on the Velocity 
 | Command | Description | Permission |
 |---|---|---|
 | `/br <message>` (alias `/broadcast`, configurable) | Send a cross-server chat message to all players | everyone |
+| `/yq [message]` | Broadcast a server invite into the cross-server chat; others click to join your server | everyone |
 
 ### Admin commands (`/velocitychat`, alias `/vchat`)
 
@@ -60,7 +64,7 @@ Chat together across your entire server network. Install **only on the Velocity 
 | `/vchat group <name> settitle <title>` | Change the group's title | `velocitychat.admin.group.settitle` |
 | `/vchat group <name> delete` | Delete a group | `velocitychat.admin.group.delete` |
 | `/vchat group list` | List all groups and their members | `velocitychat.admin.group.list` |
-| `/vchat reload` | Hot-reload config, language files & group data | `velocitychat.admin.reload` |
+| `/vchat reload` | Hot-reload config, language files, group data, forbidden words & timed announcements | `velocitychat.admin.reload` |
 
 Titles support `&` color codes, e.g. `/vchat create group admin &c&l[Admin]`.
 
@@ -90,12 +94,17 @@ Key settings (all commented in the generated file):
 | `broadcast-aliases` | `br`, `broadcast` | Aliases for the cross-server broadcast command |
 | `broadcast-cooldown` | `0` | Seconds between `/br` uses (`0` = no cooldown) |
 | `broadcast-cooldown-bypass` | `false` | When enabled, `velocitychat.admin` players ignore the cooldown |
-| `server-aliases` | 6 presets | Servers that show a localized display name |
+| `invite-cooldown` | `30` | Seconds between `/yq` invites (`0` = no cooldown) |
+| `invite-cooldown-bypass` | `false` | When enabled, players with `invite-bypass-permission` ignore the invite cooldown |
+| `invite-bypass-permission` | `velocitychat.admin` | Permission that bypasses the invite cooldown |
+| `forbidden-words-enabled` | `true` | Enable the forbidden-word filter on `/br` and `/yq` messages |
+| `forbidden-words-bypass-permission` | `velocitychat.admin` | Permission that bypasses the forbidden-word filter |
+| `server-aliases` | map presets | Servers that show a display name: `serverId: "&aDisplayName"` (supports `&` colors) |
 | `notify-mode` | `all` | Join/switch/leave visibility: `all`, `admin` (admins only), or `none` (disabled) |
 | `groups` | — | Preset groups generated on first startup |
 | `messages` | — | Override individual language-file messages (takes priority) |
 
-Group data is stored in a `groups.yml` file.
+Group data is stored in a `groups.yml` file. Banned words live in `banned_words.txt`, and timed announcements are configured in `auto_broadcast.yml` (all generated on first startup).
 
 ## 🔨 Building from source
 
@@ -107,7 +116,7 @@ cd Velocity_Plugin/VelocityChat
 mvn package
 ```
 
-The built plugin is at `target/VelocityChat-1.7.0.jar`.
+The built plugin is at `target/VelocityChat-2.1.0.jar`.
 
 ## 📜 Changelog
 

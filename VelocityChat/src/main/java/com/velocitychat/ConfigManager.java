@@ -24,7 +24,8 @@ public class ConfigManager {
     // Raw config values
     private Map<String, Object> config;
     private final Map<String, String> messages = new LinkedHashMap<>();
-    private final Set<String> serverAliases = new HashSet<>();
+    // 服务器别名: 小写服务器ID -> 原始显示名称 (直接写在 config.yml 的 server-aliases 中)
+    private final Map<String, String> serverAliases = new HashMap<>();
 
     public ConfigManager(Logger logger, Path dataDirectory) {
         this.logger = logger;
@@ -73,11 +74,13 @@ public class ConfigManager {
             currentLanguage = config.get("language").toString();
         }
 
-        // Read server aliases list
+        // Read server aliases map: 服务器ID -> 显示名称
         serverAliases.clear();
-        if (config.get("server-aliases") instanceof List<?> list) {
-            for (Object o : list) {
-                if (o != null) serverAliases.add(o.toString().toLowerCase());
+        if (config.get("server-aliases") instanceof Map<?, ?> map) {
+            for (var entry : map.entrySet()) {
+                if (entry.getKey() instanceof String id && entry.getValue() != null) {
+                    serverAliases.put(id.toLowerCase(), entry.getValue().toString());
+                }
             }
         }
 
@@ -144,6 +147,24 @@ public class ConfigManager {
             }
         }
 
+        // 兼容升级：旧版语言文件缺少新版本新增的键时，从内置资源补齐缺失键，
+        // 用户自定义的键不会被覆盖 / Merge missing keys from the built-in resource so
+        // older language files gain newly-added keys without overwriting customizations.
+        if (loaded) {
+            String resourcePath = "lang/" + this.currentLanguage + ".yml";
+            try (InputStream in = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+                if (in != null) {
+                    int merged = mergeMissingKeys(in);
+                    if (merged > 0) {
+                        logger.info("Merged {} missing key(s) from built-in {} into existing language file",
+                                merged, resourcePath);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to merge built-in language keys", e);
+            }
+        }
+
         // Fall back to built-in resources
         if (!loaded) {
             String resourcePath = "lang/" + this.currentLanguage + ".yml";
@@ -192,7 +213,14 @@ public class ConfigManager {
     }
 
     /**
-     * Get the display name for a server, using its alias if defined.
+     * Get the display name for a server.
+     * <p>
+     * Resolution order:
+     * <ol>
+     *   <li>config.yml {@code server-aliases} map (recommended — single-file config)</li>
+     *   <li>language file alias (backward compatibility)</li>
+     *   <li>raw server ID</li>
+     * </ol>
      *
      * @param serverId The raw server ID (e.g. "lobby", "survival")
      * @return The display name with color codes translated
@@ -200,7 +228,13 @@ public class ConfigManager {
     public String getServerDisplayName(String serverId) {
         if (serverId == null) return "§7unknown";
 
-        // Check if this server has an alias in the language file
+        // 优先从 config.yml 的 server-aliases map 读取显示名称
+        String alias = serverAliases.get(serverId.toLowerCase());
+        if (alias != null && !alias.isBlank()) {
+            return ColorUtils.translate(alias);
+        }
+
+        // 兼容旧版本: 语言文件中定义的别名
         String aliasKey = "qu_an.chat.server.name." + serverId.toLowerCase();
         if (messages.containsKey(aliasKey)) {
             return ColorUtils.translate(messages.get(aliasKey));
@@ -249,10 +283,10 @@ public class ConfigManager {
     }
 
     /**
-     * Check if a server is in the server-aliases list.
+     * Check if a server has a custom alias in the server-aliases map.
      */
     public boolean hasServerAlias(String serverId) {
-        return serverId != null && serverAliases.contains(serverId.toLowerCase());
+        return serverId != null && serverAliases.containsKey(serverId.toLowerCase());
     }
 
     /**
@@ -294,7 +328,91 @@ public class ConfigManager {
         return false;
     }
 
+    /**
+     * Get the server-invite cooldown in seconds.
+     * 0 means no cooldown.
+     */
+    public int getInviteCooldown() {
+        if (config != null && config.containsKey("invite-cooldown")) {
+            Object val = config.get("invite-cooldown");
+            if (val instanceof Number n) return n.intValue();
+        }
+        return 0;
+    }
+
+    /**
+     * Check if invite cooldown bypass is enabled.
+     * When enabled, players with the configured bypass permission ignore the cooldown.
+     */
+    public boolean isInviteCooldownBypassEnabled() {
+        if (config != null && config.containsKey("invite-cooldown-bypass")) {
+            Object val = config.get("invite-cooldown-bypass");
+            if (val instanceof Boolean b) return b;
+            if (val instanceof String s) return s.equalsIgnoreCase("true");
+        }
+        return false;
+    }
+
+    /**
+     * Get the permission node that bypasses the invite cooldown.
+     */
+    public String getInviteBypassPermission() {
+        if (config != null && config.containsKey("invite-bypass-permission")) {
+            Object val = config.get("invite-bypass-permission");
+            if (val != null && !val.toString().isBlank()) return val.toString();
+        }
+        return "velocitychat.admin";
+    }
+
+    /**
+     * Check if forbidden-word (违禁词) filtering is enabled.
+     * Defaults to false when the key is absent (keeps older configs safe).
+     */
+    public boolean isForbiddenWordsEnabled() {
+        if (config != null && config.containsKey("forbidden-words-enabled")) {
+            Object val = config.get("forbidden-words-enabled");
+            if (val instanceof Boolean b) return b;
+            if (val instanceof String s) return s.equalsIgnoreCase("true");
+        }
+        return false;
+    }
+
+    /**
+     * Get the permission that bypasses the forbidden-word filter.
+     */
+    public String getForbiddenWordsBypassPermission() {
+        if (config != null && config.containsKey("forbidden-words-bypass-permission")) {
+            Object val = config.get("forbidden-words-bypass-permission");
+            if (val != null && !val.toString().isBlank()) return val.toString();
+        }
+        return "velocitychat.admin";
+    }
+
     // ── Internal Helpers ─────────────────────────────────────
+
+    /**
+     * Merge keys from a built-in language resource that are missing from the current
+     * messages map. Existing keys (including user customizations) are never overwritten.
+     *
+     * @param in InputStream of a built-in language resource
+     * @return the number of newly merged keys
+     */
+    @SuppressWarnings("unchecked")
+    private int mergeMissingKeys(InputStream in) {
+        int merged = 0;
+        Yaml yaml = new Yaml();
+        Object loaded = yaml.load(in);
+        if (loaded instanceof Map<?, ?> map) {
+            for (var entry : map.entrySet()) {
+                if (entry.getKey() instanceof String key && entry.getValue() != null
+                        && !messages.containsKey(key)) {
+                    messages.put(key, entry.getValue().toString());
+                    merged++;
+                }
+            }
+        }
+        return merged;
+    }
 
     @SuppressWarnings("unchecked")
     private boolean loadFromStream(InputStream in) {

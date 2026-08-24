@@ -52,6 +52,8 @@ public class PlayerListener {
         player.hasPermission("velocitychat.admin.group.list");
         player.hasPermission("velocitychat.admin.reload");
         player.hasPermission("velocitychat.broadcast");
+        player.hasPermission("velocitychat.invite");
+        player.hasPermission("velocitychat.invite.bypass");
     }
 
     @Subscribe(order = PostOrder.LATE)

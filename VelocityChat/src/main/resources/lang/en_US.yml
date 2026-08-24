@@ -28,6 +28,26 @@ qu_an.chat.message.chat.default: "§8[§r{0}§8][§r{1}§8]§r<{2}§r> {3}"
 # {0}: player name, {1}: server name, {2}: chat message
 qu_an.chat.message.broadcast: "§d[Broadcast]§r[{1}§r]§r{0} §7>>§f {2}"
 
+# ── Server Invite Messages ──
+# {0}: inviter name, {1}: server display name
+# Invite text (click "Join" to enter the server)
+qu_an.chat.message.invite: "§d[Invite] §r{0} §7invites you to join §r{1}"
+# Join button label
+qu_an.chat.message.invite.click: "§a§l[Click to Join]"
+# Hover text on the join button
+# ({0} = inviter name, {1} = server display name)
+qu_an.chat.message.invite.hover: "§7Click to join §r{1}"
+# Cooldown message ({0} = remaining seconds)
+qu_an.chat.message.invite.cooldown: "§cPlease wait {0}s before inviting again"
+# Players-only message
+qu_an.chat.message.invite.console: "§cOnly players can use this command"
+# Player not on a server
+qu_an.chat.message.invite.no_server: "§cYou are not on a server, cannot send an invite"
+
+# ── Forbidden Word Filter ──
+# Message blocked by the forbidden-word filter
+qu_an.chat.message.filter.blocked: "§cYour message contains a banned word and was blocked!"
+
 # ── Server Aliases / Server Names ──
 # Format: qu_an.chat.server.name.<server_id>=<display_name>
 # Servers without an alias will display the raw server ID

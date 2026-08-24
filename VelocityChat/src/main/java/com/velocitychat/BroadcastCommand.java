@@ -24,15 +24,18 @@ public class BroadcastCommand implements SimpleCommand {
     private final ProxyServer server;
     private final GroupManager groupManager;
     private final ConfigManager config;
+    private final ForbiddenWordsManager forbiddenWords;
     private final Logger logger;
 
     // 冷却追踪 / Cooldown tracking: player UUID -> last broadcast timestamp (millis)
     private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
 
-    public BroadcastCommand(ProxyServer server, GroupManager groupManager, ConfigManager config, Logger logger) {
+    public BroadcastCommand(ProxyServer server, GroupManager groupManager, ConfigManager config,
+                            ForbiddenWordsManager forbiddenWords, Logger logger) {
         this.server = server;
         this.groupManager = groupManager;
         this.config = config;
+        this.forbiddenWords = forbiddenWords;
         this.logger = logger;
     }
 
@@ -43,7 +46,7 @@ public class BroadcastCommand implements SimpleCommand {
 
         // Check if arguments are provided
         if (args.length == 0) {
-            source.sendMessage(Component.text("§c用法 / Usage: /br <消息/message>"));
+            ColorUtils.sendMessage(source, logger, "§c用法 / Usage: /br <消息/message>");
             return;
         }
 
@@ -68,6 +71,16 @@ public class BroadcastCommand implements SimpleCommand {
 
         // Join all arguments into a single message
         String rawMessage = String.join(" ", args);
+
+        // ── 违禁词检测 / Forbidden word filter ──
+        if (source instanceof Player player
+                && forbiddenWords.isEnabled()
+                && !forbiddenWords.hasBypass(player)
+                && forbiddenWords.containsForbiddenWord(rawMessage)) {
+            player.sendMessage(Component.text(config.getMessage("qu_an.chat.message.filter.blocked")));
+            logger.info("Blocked forbidden message from {}: {}", player.getUsername(), rawMessage);
+            return;
+        }
 
         // Get the sender's display name
         String senderName;

@@ -17,11 +17,13 @@
 language: zh_CN
 
 # ── 广播指令别名 / Broadcast Command Aliases ──────────────
-# 玩家可使用 /br <消息> 或 /broadcast <消息> 发送跨服聊天
+# 玩家可使用 /br <消息>、/k <消息> 或 /broadcast <消息> 发送跨服聊天
 # 也可在此添加更多别名 / You can add more aliases here
+# 注：/k 始终会被注册（无论是否在此列出）/ Note: /k is always registered
 broadcast-aliases:
   - "br"
   - "broadcast"
+  - "k"
 
 # ── 跨服聊天冷却设置 / Broadcast Cooldown ──────────────────
 # 玩家使用 /br 后需要等待的秒数（设为 0 关闭冷却）
@@ -31,18 +33,41 @@ broadcast-aliases:
 broadcast-cooldown: 0
 broadcast-cooldown-bypass: false
 
+# ── 跨服邀请功能 / Server Invite ───────────────────────────
+# 玩家输入 /yq [消息] 会在跨服聊天中广播一个邀请，
+# 其他玩家点击"点击加入"即可进入该玩家所在的服务器
+# /yq [message] broadcasts a server invite into the cross-server chat;
+# other players can click it to join the inviter's server
+# 冷却时间（秒），设为 0 关闭冷却 / Cooldown in seconds (0 = no cooldown)
+invite-cooldown: 30
+# 启用权限绕过：拥有 invite-bypass-permission 的玩家无视冷却
+# When enabled, players with invite-bypass-permission ignore the cooldown
+invite-cooldown-bypass: false
+# 绕过冷却所需的权限节点 / Permission that bypasses the invite cooldown
+invite-bypass-permission: "velocitychat.admin"
+
+# ── 违禁词检测 / Forbidden Word Filter ─────────────────────
+# 开启后，跨服聊天(/br)与邀请(/yq)消息若包含违禁词将被拦截
+# When enabled, /br and /yq messages containing a banned word are blocked
+forbidden-words-enabled: true
+# 违禁词列表存放在 banned_words.txt 中，用分号 ; 分隔，修改后执行 /vchat reload 生效
+# Banned words live in banned_words.txt, separated by semicolons ; — run /vchat reload to apply
+# 拥有此权限的玩家可绕过检测 / Players with this permission bypass the filter
+forbidden-words-bypass-permission: "velocitychat.admin"
+
 # ── 服务器别名 / Server Aliases ───────────────────────────
-# 需要显示别名的服务器列表（显示名称在语言文件中定义：qu_an.chat.server.name.<id>）
-# List servers that should show a localized alias (defined in language files: qu_an.chat.server.name.<id>)
-# 如果某服务器在此列表但未定义名称，则使用服务器原始 ID
-# If a server is in this list but has no alias defined, the raw server ID is used
+# 格式：真实服务器ID: "&a显示名称"（支持 & 颜色代码）
+# Format: real_server_id: "&aDisplayName" (supports & color codes)
+# 只需修改本文件即可，无需再改语言文件
+# Edit only this file — no need to touch the language files anymore
 server-aliases:
-  - lobby
-  - survival
-  - minigame
-  - factions
-  - skyblock
-  - creative
+  # 真实服务器名: "&a显示名称"
+  lobby: "&6登录服"
+  survival: "&a生存服"
+  minigame: "&b小游戏服"
+  factions: "&c战争服"
+  skyblock: "&d空岛服"
+  creative: "&e创造服"
 
 # ── 进服/切服/离服消息可见性 / Join/Switch/Leave Visibility ──
 # notify-mode: 谁可以看到这些消息 / Who can see these messages
@@ -82,7 +107,9 @@ notify-mode: all
 #   qu_an.chat.message.server_switch
 #   qu_an.chat.message.disconnect
 #   qu_an.chat.message.chat.default
-#   qu_an.chat.server.name.<id>
+#   qu_an.chat.message.invite
+#   qu_an.chat.message.invite.click
+#   qu_an.chat.message.invite.hover
+#   qu_an.chat.message.filter.blocked
 # messages:
 #   qu_an.chat.proxy.name: "§d跨服聊天"
-#   qu_an.chat.server.name.lobby: "§6登录服"

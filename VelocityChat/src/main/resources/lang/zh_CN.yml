@@ -28,6 +28,26 @@ qu_an.chat.message.chat.default: "§8[§r{0}§8][§r{1}§8]§r<{2}§r> {3}"
 # {0}: 玩家名, {1}: 服务器名, {2}: 聊天内容
 qu_an.chat.message.broadcast: "§d[跨服聊天]§r[{1}§r]§r{0} §7>>§f {2}"
 
+# ── 跨服邀请消息 / Server Invite Messages ──
+# {0}: 邀请者玩家名, {1}: 服务器显示名称 / inviter name, server display name
+# 邀请文本（点击"点击加入"可进入该服务器）
+qu_an.chat.message.invite: "§d[邀请] §r{0} §7邀请你加入服务器 §r{1}"
+# "点击加入"按钮文字 / Join button label
+qu_an.chat.message.invite.click: "§a§l[点击加入]"
+# 悬停在按钮上时显示的文字 / Hover text on the join button
+# ({0} = 邀请者玩家名, {1} = 服务器显示名称)
+qu_an.chat.message.invite.hover: "§7点击进入 §r{1}"
+# 冷却提示 / Cooldown message ({0} = remaining seconds)
+qu_an.chat.message.invite.cooldown: "§c请等待 {0} 秒后再发起邀请"
+# 仅玩家可用 / Players-only message
+qu_an.chat.message.invite.console: "§c只有玩家可以使用此命令"
+# 玩家未连接到任何服务器 / Player not on a server
+qu_an.chat.message.invite.no_server: "§c你当前不在任何服务器中，无法发起邀请"
+
+# ── 违禁词检测 / Forbidden Word Filter ──
+# 消息包含违禁词被拦截 / Message blocked by the forbidden-word filter
+qu_an.chat.message.filter.blocked: "§c你的消息包含违禁词，已被拦截！"
+
 # ── 服务器别名 / Server Aliases ──
 # 格式: qu_an.chat.server.name.<服务器ID>=<显示名称>
 # 未定义别名的服务器将显示原始 ID

@@ -16,9 +16,12 @@
 ## ✨ 功能特性
 
 - **跨服广播** — `/br <消息>` 把聊天消息发送到所有子服的所有玩家
+- **跨服邀请** — `/yq [消息]` 在跨服聊天中广播邀请，其他玩家点击即可加入该玩家所在的服务器（可配置冷却与权限绕过）
+- **违禁词检测** — 拦截包含违禁词的 `/br` 与 `/yq` 消息（可开关，违禁词放在 `banned_words.txt` 中、用分号 `;` 分隔，管理员可绕过）
+- **定时消息** — 按时刻调度公告，支持 每天/每周/每月/仅一次 循环，也可按 `30min` 等时长间隔循环（在 `auto_broadcast.yml` 中配置）
 - **颜色代码** — 完整支持 `&` 颜色代码（`&c`、`&6`、`&l`、`&r`……）
 - **进服/切服/离服消息** — 玩家进服、切换服务器、断开连接时自动广播
-- **服务器别名** — 用 "登录服" 之类的友好名称代替原始服务器 ID（如 `lobby`）
+- **服务器别名** — 直接在 `config.yml` 中配置（`服务器ID: "&a显示名称"`），无需再改语言文件
 - **群组称号** — 创建群组并给成员设置称号前缀，显示在聊天中的玩家名前
 - **权限细分** — `velocitychat.admin.*` 子权限节点，可与 LuckPerms 搭配（可选依赖）
 - **广播冷却** — 可选的防刷屏冷却，管理员可绕过
@@ -49,6 +52,7 @@
 | 命令 | 说明 | 权限 |
 |---|---|---|
 | `/br <消息>`（别名 `/broadcast`，可自定义） | 向所有玩家发送跨服聊天消息 | 所有玩家 |
+| `/yq [消息]` | 在跨服聊天中广播邀请，其他玩家点击即可加入你所在的服务器 | 所有玩家 |
 
 ### 管理命令（`/velocitychat`，别名 `/vchat`）
 
@@ -60,7 +64,7 @@
 | `/vchat group <名称> settitle <称号>` | 修改群组称号 | `velocitychat.admin.group.settitle` |
 | `/vchat group <名称> delete` | 删除群组 | `velocitychat.admin.group.delete` |
 | `/vchat group list` | 查看所有群组及成员 | `velocitychat.admin.group.list` |
-| `/vchat reload` | 热重载配置、语言文件和群组数据 | `velocitychat.admin.reload` |
+| `/vchat reload` | 热重载配置、语言文件、群组数据、违禁词列表及定时消息 | `velocitychat.admin.reload` |
 
 称号支持 `&` 颜色代码，例如 `/vchat create group admin &c&l[管理员]`。
 
@@ -90,12 +94,17 @@
 | `broadcast-aliases` | `br`、`broadcast` | 跨服广播命令的别名 |
 | `broadcast-cooldown` | `0` | 两次 `/br` 的最小间隔（`0` = 无冷却） |
 | `broadcast-cooldown-bypass` | `false` | 启用后，拥有 `velocitychat.admin` 的玩家无视冷却 |
-| `server-aliases` | 6 个预设 | 需要显示本地化名称的服务器列表 |
+| `invite-cooldown` | `30` | 两次 `/yq` 邀请的最小间隔（`0` = 无冷却） |
+| `invite-cooldown-bypass` | `false` | 启用后，拥有 `invite-bypass-permission` 的玩家无视邀请冷却 |
+| `invite-bypass-permission` | `velocitychat.admin` | 绕过邀请冷却所需的权限节点 |
+| `forbidden-words-enabled` | `true` | 开启 `/br` 与 `/yq` 消息的违禁词检测 |
+| `forbidden-words-bypass-permission` | `velocitychat.admin` | 可绕过违禁词检测的权限 |
+| `server-aliases` | map 预设 | 服务器显示名称：`服务器ID: "&a显示名称"`（支持 `&` 颜色） |
 | `notify-mode` | `all` | 进服/切服/离服消息可见性：`all`、`admin`（仅管理员）、`none`（关闭） |
 | `groups` | — | 首次启动时生成的预设群组 |
 | `messages` | — | 覆盖语言文件中的指定消息（优先级更高） |
 
-群组数据保存在 `groups.yml` 文件中。
+群组数据保存在 `groups.yml` 文件中。违禁词放在 `banned_words.txt`，定时消息在 `auto_broadcast.yml` 中配置（两者均在首次启动时自动生成）。
 
 ## 🔨 从源码构建
 
@@ -107,7 +116,7 @@ cd Velocity_Plugin/VelocityChat
 mvn package
 ```
 
-构建产物位于 `target/VelocityChat-1.7.0.jar`。
+构建产物位于 `target/VelocityChat-2.1.0.jar`。
 
 ## 📜 更新日志
 

@@ -1,5 +1,10 @@
 package com.velocitychat;
 
+import com.velocitypowered.api.command.CommandSource;
+import com.velocitypowered.api.proxy.Player;
+import net.kyori.adventure.text.Component;
+import org.slf4j.Logger;
+
 /**
  * Utility class for translating Minecraft color codes.
  * Converts '&amp;' character to '§' (section sign) used by Minecraft,
@@ -20,6 +25,23 @@ public class ColorUtils {
             return message;
         }
         return message.replace('&', '§');
+    }
+
+    /**
+     * Sends a color-coded message (§ codes) to a command source.
+     * Players receive the message in chat; the console receives it with ANSI
+     * colors so it doesn't show literal § codes.
+     *
+     * @param source  The command source (player or console)
+     * @param logger  Logger used for console output
+     * @param message The message containing § color codes
+     */
+    public static void sendMessage(CommandSource source, Logger logger, String message) {
+        if (source instanceof Player) {
+            source.sendMessage(Component.text(message));
+        } else {
+            logger.info(toAnsi(message));
+        }
     }
 
     /**

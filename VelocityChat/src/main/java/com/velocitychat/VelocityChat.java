@@ -13,6 +13,8 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * VelocityChat — A cross-server proxy chat plugin for Velocity.
@@ -28,8 +30,8 @@ import java.nio.file.Path;
 @Plugin(
         id = "velocity-chat",
         name = "VelocityChat",
-        version = "1.8.0",
-        description = "Cross-server proxy chat plugin — broadcast, join/switch/leave messages with server aliases",
+        version = "2.1.0",
+        description = "Cross-server proxy chat plugin — broadcast, join/switch/leave messages, server invites, forbidden-word filter, timed announcements with server aliases",
         authors = {"YuHongChen(LiquidTeam) QQ:1464670605"},
         url = "https://github.com/LiquidTeamYHC/Velocity_Plugin/tree/main/VelocityChat",
         dependencies = {
@@ -44,6 +46,8 @@ public class VelocityChat {
 
     private ConfigManager configManager;
     private GroupManager groupManager;
+    private ForbiddenWordsManager forbiddenWordsManager;
+    private AutoBroadcast autoBroadcast;
 
     @Inject
     public VelocityChat(ProxyServer server, Logger logger, @DataDirectory Path dataDirectory) {
@@ -71,13 +75,22 @@ public class VelocityChat {
         groupManager = new GroupManager(logger, dataDirectory);
         groupManager.load();
 
+        // ── Initialize forbidden-word filter ──
+        forbiddenWordsManager = new ForbiddenWordsManager(logger, dataDirectory);
+        forbiddenWordsManager.load(configManager);
+
+        // ── Initialize timed announcements ──
+        autoBroadcast = new AutoBroadcast(this, server, logger, dataDirectory);
+        autoBroadcast.load();
+        autoBroadcast.start();
+
         // ── Register commands ──
         registerCommands();
 
         // ── Register event listeners ──
         server.getEventManager().register(this, new PlayerListener(server, configManager, logger));
 
-        logger.info("VelocityChat v1.7.0 enabled");
+        logger.info("VelocityChat v2.1.0 enabled");
         logger.info("Author: YuHongChen(LiquidTeam) QQ:1464670605");
     }
 
@@ -90,6 +103,7 @@ public class VelocityChat {
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
+        autoBroadcast.stop();
         logger.info("VelocityChat disabled");
     }
 
@@ -98,8 +112,11 @@ public class VelocityChat {
     private void registerCommands() {
         var cmdManager = server.getCommandManager();
 
-        // Get broadcast aliases from config
-        var aliases = configManager.getBroadcastAliases();
+        // Get broadcast aliases from config; always ensure /k is registered
+        var aliases = new ArrayList<>(configManager.getBroadcastAliases());
+        if (!aliases.contains("k")) {
+            aliases.add("k");
+        }
 
         // Use the first alias as the primary command name, rest as aliases
         String primary = aliases.isEmpty() ? "br" : aliases.get(0);
@@ -112,7 +129,7 @@ public class VelocityChat {
                 .plugin(this)
                 .build();
 
-        cmdManager.register(meta, new BroadcastCommand(server, groupManager, configManager, logger));
+        cmdManager.register(meta, new BroadcastCommand(server, groupManager, configManager, forbiddenWordsManager, logger));
         logger.info("Registered broadcast command: /{} (aliases: {})", primary,
                 String.join(", ", aliases));
 
@@ -121,8 +138,15 @@ public class VelocityChat {
                 .aliases("vchat")
                 .plugin(this)
                 .build();
-        cmdManager.register(vchatMeta, new VelocityChatCommand(server, groupManager, configManager, logger));
+        cmdManager.register(vchatMeta, new VelocityChatCommand(server, groupManager, configManager, forbiddenWordsManager, autoBroadcast, logger));
         logger.info("Registered admin command: /velocitychat (/vchat)");
+
+        // Register /yq cross-server invite command
+        var inviteMeta = cmdManager.metaBuilder("yq")
+                .plugin(this)
+                .build();
+        cmdManager.register(inviteMeta, new InviteCommand(server, configManager, forbiddenWordsManager, logger));
+        logger.info("Registered invite command: /yq");
     }
 
     /**
@@ -130,5 +154,19 @@ public class VelocityChat {
      */
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    /**
+     * Returns the forbidden-word filter manager instance.
+     */
+    public ForbiddenWordsManager getForbiddenWordsManager() {
+        return forbiddenWordsManager;
+    }
+
+    /**
+     * Returns the timed announcement manager instance.
+     */
+    public AutoBroadcast getAutoBroadcast() {
+        return autoBroadcast;
     }
 }
