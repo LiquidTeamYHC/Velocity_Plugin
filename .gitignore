@@ -28,3 +28,6 @@ _jar备份/
 \[获取子服人数\]ServerInfoBridge/
 \[跨服tp\]VelocityTP/
 \[限制同IP进服的账号\]VelocityMultiAccountLimit/
+
+# ── 本地图标（不上传）──────────────────────
+VelocityChat/icon.png
