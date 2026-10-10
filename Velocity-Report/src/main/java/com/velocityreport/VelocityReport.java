@@ -19,13 +19,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Plugin(
     id = "velocity-report",
     name = "VelocityReport",
-    version = "2.2.0",
+    version = "2.3.0",
     description = "Cross-server report plugin for Velocity proxy",
     authors = {"YuHongChen(LiquidTeam)"},
     url = "https://github.com/LiquidTeamYHC/Velocity_Plugin/tree/main/Velocity-Report"
@@ -39,6 +40,7 @@ public class VelocityReport {
     private ReportStorage storage;
     private ReportManager manager;
     private LanguageManager languageManager;
+    private StaffManager staffManager;
     private Map<String, Object> config;  // raw config
 
     @Inject
@@ -75,8 +77,10 @@ public class VelocityReport {
             return;
         }
 
-        // ── Initialize manager (with LanguageManager) ──
-        manager = new ReportManager(server, storage, logger, languageManager);
+        // ── Initialize manager (with LanguageManager + staff list) ──
+        staffManager = new StaffManager(logger, dataDirectory);
+        staffManager.load();
+        manager = new ReportManager(server, storage, logger, languageManager, staffManager);
 
         // ── Apply config settings to manager ──
         applyConfig();
@@ -87,7 +91,7 @@ public class VelocityReport {
                 .aliases("rep")
                 .plugin(this)
                 .build();
-        cmdManager.register(metaReport, new ReportCommand(manager, server));
+        cmdManager.register(metaReport, new ReportCommand(manager));
 
         var metaReports = cmdManager.metaBuilder("reports")
                 .aliases("reportslist", "reportlist")
@@ -106,10 +110,20 @@ public class VelocityReport {
                 .build();
         cmdManager.register(metaClose, new ReportCloseCommand(manager));
 
-        var metaReload = cmdManager.metaBuilder("reportreload")
+        var staffCommand = new StaffCommand(manager, server);
+        var metaStaff = cmdManager.metaBuilder("reportstaff")
                 .plugin(this)
                 .build();
-        cmdManager.register(metaReload, new ReportReloadCommand(this));
+        cmdManager.register(metaStaff, staffCommand);
+
+        // Single entry point for all staff actions; the commands above stay as they are.
+        // Config reloading lives here too (/reportadmin reload) — the old /reportreload
+        // command was removed in 2.3.0.
+        var metaAdmin = cmdManager.metaBuilder("reportadmin")
+                .aliases("reportadm", "ra")
+                .plugin(this)
+                .build();
+        cmdManager.register(metaAdmin, new ReportAdminCommand(this, manager, staffCommand));
 
         var metaHistory = cmdManager.metaBuilder("reportcd")
                 .plugin(this)
@@ -119,7 +133,7 @@ public class VelocityReport {
         // ── Register listener ──
         server.getEventManager().register(this, new PlayerListener(manager));
 
-        logger.info("VelocityReport v2.1.1 enabled");
+        logger.info("VelocityReport v2.3.0 enabled");
         logger.info("Author: YuHongChen(LiquidTeam) | 作者QQ:1464670605");
     }
 
@@ -251,16 +265,18 @@ public class VelocityReport {
         if (config.get("reports-per-page") instanceof Number n) {
             manager.setReportsPerPage(n.intValue());
         }
+        if (config.get("offline-report-window-hours") instanceof Number n) {
+            manager.setOfflineReportWindowHours(n.intValue());
+        }
 
         // Staff users list (for servers without a permission plugin)
-        if (config.get("staff-users") instanceof List<?> list) {
-            manager.setStaffUsers((List<String>) (List<?>) list);
-        }
+        // Empty by default; an absent or emptied list clears the names on reload.
+        manager.setStaffUsers(config.get("staff-users") instanceof List<?> list
+                ? (List<String>) (List<?>) list
+                : List.of());
 
-        // Server aliases (display names come from language files: server-alias-<name>)
-        if (config.get("server-aliases") instanceof List<?> aliases) {
-            manager.setServerAliases((List<String>) (List<?>) aliases);
-        }
+        // Server aliases (raw server name → display text)
+        applyServerAliases();
 
         // Report reasons (name and description come from language files)
         if (config.get("report-reasons") instanceof List<?> list) {
@@ -287,6 +303,33 @@ public class VelocityReport {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Reads the {@code server-aliases} section.
+     * <p>
+     * Current format is a map of server name → display text. The format used
+     * before 2.3.0 was a plain list of server names whose display text lived in
+     * the language file ({@code server-alias-<name>}); that is still accepted so
+     * existing configs keep working.
+     */
+    @SuppressWarnings("unchecked")
+    private void applyServerAliases() {
+        Object node = config.get("server-aliases");
+
+        if (node instanceof Map<?, ?> map) {
+            Map<String, String> aliases = new LinkedHashMap<>();
+            for (var entry : map.entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    aliases.put(entry.getKey().toString(), entry.getValue().toString());
+                }
+            }
+            manager.setServerAliases(aliases);
+        } else if (node instanceof List<?> names) {
+            manager.setLegacyServerAliases((List<String>) (List<?>) names);
+        } else {
+            manager.setServerAliases(Map.of());
         }
     }
 

@@ -121,7 +121,7 @@ public class ReportHistoryCommand implements SimpleCommand {
 
     @Override
     public boolean hasPermission(Invocation invocation) {
-        return invocation.source().hasPermission("velocityreport.staff");
+        return manager.isStaff(invocation.source());
     }
 
     @Override

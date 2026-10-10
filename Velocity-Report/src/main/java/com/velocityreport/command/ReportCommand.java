@@ -3,28 +3,28 @@ package com.velocityreport.command;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.Player;
-import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocityreport.ReportManager;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
  * /report &lt;player&gt; [reason]
  * <p>
  * Without reason: shows a clickable reason-selection menu.
  * With reason: files the report directly.
+ * The target may be online, or offline within the configured window.
  * Permission: {@code velocityreport.report} (default true).
  */
 public class ReportCommand implements SimpleCommand {
 
-    private final ReportManager manager;
-    private final ProxyServer server;
+    /** Upper bound on tab-complete suggestions, so a busy network does not flood the client. */
+    private static final int SUGGEST_LIMIT = 50;
 
-    public ReportCommand(ReportManager manager, ProxyServer server) {
+    private final ReportManager manager;
+
+    public ReportCommand(ReportManager manager) {
         this.manager = manager;
-        this.server = server;
     }
 
     @Override
@@ -56,6 +56,13 @@ public class ReportCommand implements SimpleCommand {
 
         // ── No reason → show clickable reason menu ──
         if (args.length < 2) {
+            // Reject before showing the menu, so an unreportable name does not
+            // lead the player into a menu whose options all fail.
+            var targetError = manager.checkReportable(reportedName);
+            if (targetError != null) {
+                source.sendMessage(targetError);
+                return;
+            }
             source.sendMessage(manager.buildReasonMenu(reportedName));
             return;
         }
@@ -131,13 +138,9 @@ public class ReportCommand implements SimpleCommand {
     public CompletableFuture<List<String>> suggestAsync(Invocation invocation) {
         String[] args = invocation.arguments();
         if (args.length <= 1) {
-            String prefix = args.length == 1 ? args[0].toLowerCase() : "";
-            List<String> matches = server.getAllPlayers().stream()
-                    .map(Player::getUsername)
-                    .filter(name -> name.toLowerCase().startsWith(prefix))
-                    .sorted()
-                    .collect(Collectors.toList());
-            return CompletableFuture.completedFuture(matches);
+            // Online players plus offline players still inside the report window
+            String prefix = args.length == 1 ? args[0] : "";
+            return CompletableFuture.completedFuture(manager.getReportableNames(prefix, SUGGEST_LIMIT));
         }
         // Suggest reason IDs when typing the second argument
         if (args.length == 2) {
@@ -146,7 +149,7 @@ public class ReportCommand implements SimpleCommand {
                     .map(r -> r.getId())
                     .filter(id -> id.startsWith(prefix))
                     .sorted()
-                    .collect(Collectors.toList());
+                    .toList();
             return CompletableFuture.completedFuture(matches);
         }
         return CompletableFuture.completedFuture(List.of());
