@@ -71,6 +71,7 @@ public class LanguageManager {
         if (Files.exists(langFile)) {
             try (InputStream in = Files.newInputStream(langFile)) {
                 if (loadFromStream(in)) {
+                    mergeBuiltInDefaults();
                     logger.info("Loaded language file: lang/{}.yml from data directory", this.currentLanguage);
                     return true;
                 }
@@ -150,21 +151,54 @@ public class LanguageManager {
 
     // ── Internal helpers ──────────────────────────────────────
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Copies every key of the built-in language file that the user's own file
+     * does not define yet, so messages added by a plugin update work without
+     * editing anything. Values from the data directory always win.
+     */
+    private void mergeBuiltInDefaults() {
+        String resourcePath = "lang/" + currentLanguage + ".yml";
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) return;
+
+            Map<String, String> builtIn = new LinkedHashMap<>();
+            if (!parseInto(in, builtIn)) return;
+
+            int added = 0;
+            for (Map.Entry<String, String> entry : builtIn.entrySet()) {
+                if (!messages.containsKey(entry.getKey())) {
+                    messages.put(entry.getKey(), entry.getValue());
+                    added++;
+                }
+            }
+            if (added > 0) {
+                logger.info("Added {} missing message key(s) from built-in lang/{}.yml",
+                        added, currentLanguage);
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to merge built-in message defaults for lang/{}.yml", currentLanguage, e);
+        }
+    }
+
     private boolean loadFromStream(InputStream in) {
+        return parseInto(in, messages);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean parseInto(InputStream in, Map<String, String> target) {
         Yaml yaml = new Yaml();
         Object loaded = yaml.load(in);
         if (loaded instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 if (entry.getKey() instanceof String key && entry.getValue() instanceof String value) {
-                    messages.put(key, value);
+                    target.put(key, value);
                 } else if (entry.getKey() instanceof String key && entry.getValue() != null) {
                     // For non-string values (e.g. multi-line strings parsed as TextBlock),
                     // convert to string
-                    messages.put(key, entry.getValue().toString());
+                    target.put(key, entry.getValue().toString());
                 }
             }
-            return !messages.isEmpty();
+            return !target.isEmpty();
         }
         return false;
     }

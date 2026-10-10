@@ -1,8 +1,10 @@
 package com.velocityreport;
 
+import com.velocityreport.model.LastSeenEntry;
 import com.velocityreport.model.Report;
 import com.velocityreport.model.Report.Status;
 import com.velocityreport.storage.ReportStorage;
+import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import net.kyori.adventure.text.Component;
@@ -27,16 +29,17 @@ public class ReportManager {
     private final ReportStorage storage;
     private final Logger logger;
     private final LanguageManager languageManager;
+    private final StaffManager staffManager;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
     // In-memory cooldown: reporter UUID → last-report timestamp (epoch ms)
     private final ConcurrentHashMap<UUID, Long> cooldowns = new ConcurrentHashMap<>();
 
-    // Staff usernames (case-insensitive lookup) — used when no permission plugin is installed
-    private final Set<String> staffUsers = new HashSet<>();
+    // Server aliases from config: raw server name → display text (e.g. "lobby" → "&e登录服")
+    private final Map<String, String> serverAliases = new HashMap<>();
 
-    // Server names that have localized aliases (e.g. "lobby" → "登录服" / "Lobby")
-    private final Set<String> serverAliases = new HashSet<>();
+    // Legacy (pre-2.3.0) alias config: names only, display text from the language file
+    private final Set<String> legacyServerAliases = new HashSet<>();
 
     // Report reason templates (only id + icon; name and description come from language file)
     private List<ReportReason> reportReasons = List.of(
@@ -63,13 +66,18 @@ public class ReportManager {
     private int cooldownSeconds = 60;
     private int reportsPerPage = 10;
 
+    // How long after their last logout a player can still be reported (epoch ms); <= 0 disables offline reports
+    private long offlineReportWindowMillis = 24 * 60 * 60 * 1000L;
+
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
-    public ReportManager(ProxyServer proxy, ReportStorage storage, Logger logger, LanguageManager languageManager) {
+    public ReportManager(ProxyServer proxy, ReportStorage storage, Logger logger,
+                         LanguageManager languageManager, StaffManager staffManager) {
         this.proxy = proxy;
         this.storage = storage;
         this.logger = logger;
         this.languageManager = languageManager;
+        this.staffManager = staffManager;
     }
 
     // ── Public message API (for commands) ─────────────────────
@@ -86,6 +94,134 @@ public class ReportManager {
 
     public void setCooldownSeconds(int seconds) { this.cooldownSeconds = Math.max(0, seconds); }
     public void setReportsPerPage(int n) { this.reportsPerPage = Math.max(1, n); }
+
+    /** Sets how long after their last logout a player can still be reported. 0 disables offline reports. */
+    public void setOfflineReportWindowHours(int hours) {
+        this.offlineReportWindowMillis = (long) Math.max(0, hours) * 3_600_000L;
+    }
+
+    // ── Last-seen tracking ───────────────────────────────────
+
+    /**
+     * Records that a player was seen on the proxy.
+     * <p>
+     * Called on login, on every server switch, and on logout — the proxy keeps
+     * no offline data of its own, so these records are what allow offline
+     * players to be reported afterwards.
+     *
+     * @param serverName the server the player is on, or null to keep the previously stored one
+     */
+    public void recordLastSeen(Player player, String serverName) {
+        try {
+            storage.updateLastSeen(player.getUniqueId(), player.getUsername(),
+                    System.currentTimeMillis(), serverName);
+        } catch (SQLException e) {
+            logger.warn("Failed to record last-seen for {}", player.getUsername(), e);
+        }
+    }
+
+    // ── Target resolution ────────────────────────────────────
+
+    /** A reportable player: either currently online, or offline but seen recently. */
+    private record Target(UUID uuid, String name, String server) {}
+
+    /** Either a resolved {@link Target} or the localized message explaining why it is not reportable. */
+    private record ResolvedTarget(Target target, Component error) {
+        static ResolvedTarget ok(UUID uuid, String name, String server) {
+            return new ResolvedTarget(new Target(uuid, name, server), null);
+        }
+        static ResolvedTarget fail(Component error) {
+            return new ResolvedTarget(null, error);
+        }
+        boolean isOk() { return target != null; }
+    }
+
+    /**
+     * Returns null when the player can be reported right now, otherwise the
+     * localized message saying why they cannot.
+     */
+    public Component checkReportable(String reportedName) {
+        return resolveTarget(reportedName).error();
+    }
+
+    /**
+     * Resolves a player name to a {@link Target}.
+     * <p>
+     * Online players always resolve. Offline players resolve only while their
+     * last-seen record exists and is inside the offline report window.
+     */
+    private ResolvedTarget resolveTarget(String reportedName) {
+        Optional<Player> online = proxy.getPlayer(reportedName);
+        if (online.isPresent()) {
+            Player target = online.get();
+            return ResolvedTarget.ok(
+                    target.getUniqueId(),
+                    target.getUsername(),
+                    target.getCurrentServer().map(s -> s.getServerInfo().getName()).orElse("unknown"));
+        }
+
+        LastSeenEntry entry;
+        try {
+            entry = storage.getLastSeenByName(reportedName);
+        } catch (SQLException e) {
+            logger.error("Failed to look up player '{}'", reportedName, e);
+            return ResolvedTarget.fail(buildMessage("report-internal-error"));
+        }
+
+        if (entry == null) {
+            return ResolvedTarget.fail(buildMessage("player-not-found", "{player}", reportedName));
+        }
+        if (offlineReportWindowMillis <= 0) {
+            return ResolvedTarget.fail(buildMessage("report-offline-disabled", "{player}", entry.getName()));
+        }
+        if (System.currentTimeMillis() - entry.getLastSeen() > offlineReportWindowMillis) {
+            return ResolvedTarget.fail(buildMessage("report-offline-too-long",
+                    "{player}", entry.getName(),
+                    "{hours}", formatOfflineWindowHours()));
+        }
+
+        return ResolvedTarget.ok(entry.getUuid(), entry.getName(),
+                entry.getServer() != null && !entry.getServer().isBlank() ? entry.getServer() : "unknown");
+    }
+
+    /**
+     * Names that can currently be reported, used for tab completion.
+     * <p>
+     * Always contains every online player matching the prefix, plus offline
+     * players whose last-seen record is still inside the offline window.
+     */
+    public List<String> getReportableNames(String prefix, int limit) {
+        String search = prefix == null ? "" : prefix;
+        String lowerSearch = search.toLowerCase();
+
+        List<String> names = new ArrayList<>();
+        for (Player player : proxy.getAllPlayers()) {
+            if (player.getUsername().toLowerCase().startsWith(lowerSearch)) {
+                names.add(player.getUsername());
+            }
+        }
+
+        if (offlineReportWindowMillis > 0) {
+            try {
+                for (String name : storage.getNamesSeenSince(
+                        System.currentTimeMillis() - offlineReportWindowMillis, search, limit)) {
+                    if (!names.contains(name)) {
+                        names.add(name);
+                    }
+                }
+            } catch (SQLException e) {
+                logger.warn("Failed to load offline players for tab completion", e);
+            }
+        }
+
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
+    }
+
+    /** The offline report window in hours, for use in messages. */
+    private String formatOfflineWindowHours() {
+        return String.valueOf(offlineReportWindowMillis / 3_600_000L);
+    }
 
     // ── Report creation ──────────────────────────────────────
 
@@ -111,17 +247,13 @@ public class ReportManager {
             }
         }
 
-        // ── Find reported player ──
-        Optional<Player> targetOpt = proxy.getPlayer(reportedName);
-        if (targetOpt.isEmpty()) {
-            return buildMessage("player-not-found", "{player}", reportedName);
+        // ── Resolve target (online players, or offline ones inside the window) ──
+        ResolvedTarget resolved = resolveTarget(reportedName);
+        if (!resolved.isOk()) {
+            return resolved.error();
         }
-
-        Player target = targetOpt.get();
-        UUID reportedUuid = target.getUniqueId();
-        String reportedServer = target.getCurrentServer()
-                .map(s -> s.getServerInfo().getName())
-                .orElse("unknown");
+        Target target = resolved.target();
+        UUID reportedUuid = target.uuid();
 
         // ── Reporter server ──
         String reporterServer = reporter.getCurrentServer()
@@ -131,8 +263,8 @@ public class ReportManager {
         // ── Create and persist ──
         Report report = new Report(
                 reporter.getUniqueId(), reporter.getUsername(),
-                reportedUuid, target.getUsername(),
-                reason, reporterServer, reportedServer);
+                reportedUuid, target.name(),
+                reason, reporterServer, target.server());
 
         try {
             int id = storage.createReport(report);
@@ -148,17 +280,17 @@ public class ReportManager {
         // ── Notify staff online ──
         Component notify = buildMessage("staff-notify",
                 "{reporter}", reporter.getUsername(),
-                "{reported}", target.getUsername(),
+                "{reported}", target.name(),
                 "{server}", resolveServerName(reporterServer),
                 "{reason}", reason);
         notifyStaff(notify);
 
         // ── Log ──
         logger.info("Report #{} — {} reported {} on {}: {}",
-                report.getId(), reporter.getUsername(), target.getUsername(), reporterServer, reason);
+                report.getId(), reporter.getUsername(), target.name(), reporterServer, reason);
 
         // ── Confirm to reporter ──
-        return buildMessage("report-sent", "{reported}", target.getUsername());
+        return buildMessage("report-sent", "{reported}", target.name());
     }
 
     // ── Report listing ───────────────────────────────────────
@@ -527,30 +659,145 @@ public class ReportManager {
         }
     }
 
-    /** Returns true if the player has either notify or staff permission. */
-    private boolean hasNotifyPermission(Player player) {
-        return player.hasPermission("velocityreport.notify")
-            || player.hasPermission("velocityreport.staff")
-            || staffUsers.contains(player.getUsername().toLowerCase());
+    /**
+     * Returns true when the source may run staff commands: it has the
+     * {@code velocityreport.staff} permission, or it is a player whose name is
+     * on the staff list.
+     * <p>
+     * Velocity hands out no permissions of its own — an undefined permission
+     * counts as false — so on a network without a permission plugin every
+     * player check would fail. The staff list is what makes the commands
+     * usable there. The console passes the node check on its own.
+     */
+    public boolean isStaff(CommandSource source) {
+        if (source.hasPermission("velocityreport.staff")) {
+            return true;
+        }
+        return source instanceof Player player && staffManager.contains(player.getUsername());
     }
 
-    /** Sets the list of staff usernames (auto-lowered for case-insensitive matching). */
+    /** Returns true if the player has either notify or staff permission. */
+    private boolean hasNotifyPermission(Player player) {
+        return player.hasPermission("velocityreport.notify") || isStaff(player);
+    }
+
+    /**
+     * Applies the staff list from config.yml and re-reads {@code staff-users.yml},
+     * so both sources are up to date after a reload.
+     */
     public void setStaffUsers(List<String> usernames) {
-        staffUsers.clear();
-        if (usernames != null) {
-            for (String name : usernames) {
-                if (name != null && !name.isBlank()) {
-                    staffUsers.add(name.trim().toLowerCase());
-                }
+        staffManager.setConfigured(usernames);
+        staffManager.load();
+    }
+
+    // ── Staff list management (/reportstaff) ─────────────────
+
+    /** Every staff name (config.yml + staff-users.yml), sorted. */
+    public List<String> getStaffUsers() {
+        return staffManager.getAll();
+    }
+
+    /** Builds the overview shown by {@code /reportstaff}. */
+    public Component buildStaffList() {
+        List<String> fromConfig = staffManager.getFromConfig();
+        List<String> added = staffManager.getAdded();
+
+        return Component.text()
+                .append(buildMessage("staff-list-header",
+                        "{count}", String.valueOf(staffManager.getAll().size())))
+                .append(Component.newline())
+                .append(buildMessage("staff-list-config", "{names}", joinNames(fromConfig)))
+                .append(Component.newline())
+                .append(buildMessage("staff-list-added", "{names}", joinNames(added)))
+                .append(Component.newline())
+                .append(buildMessage("staff-list-hint"))
+                .build();
+    }
+
+    /** Adds a player to the staff list and returns the feedback message. */
+    public Component addStaffUser(String playerName) {
+        String name = resolvePlayerNameCase(playerName);
+
+        if (staffManager.contains(name)) {
+            return buildMessage("staff-add-already", "{player}", name);
+        }
+        if (!staffManager.add(name)) {
+            return buildMessage("staff-save-failed");
+        }
+
+        logger.info("Added {} to the staff list via /reportstaff", name);
+        return buildMessage("staff-add-success",
+                "{player}", name,
+                "{count}", String.valueOf(staffManager.getAll().size()));
+    }
+
+    /** Removes a player from the staff list and returns the feedback message. */
+    public Component removeStaffUser(String playerName) {
+        return switch (staffManager.remove(playerName)) {
+            case REMOVED -> {
+                logger.info("Removed {} from the staff list via /reportstaff", playerName);
+                yield buildMessage("staff-remove-success", "{player}", playerName);
             }
+            case FROM_CONFIG -> buildMessage("staff-remove-from-config", "{player}", playerName);
+            case NOT_FOUND -> buildMessage("staff-remove-not-found", "{player}", playerName);
+            case FAILED -> buildMessage("staff-save-failed");
+        };
+    }
+
+    private String joinNames(List<String> names) {
+        return names.isEmpty()
+                ? languageManager.getMessage("staff-list-empty-entry")
+                : String.join(", ", names);
+    }
+
+    /**
+     * Best-effort correct spelling of a player name: the online player's name
+     * first, then the name recorded in the last-seen table, then the input as-is.
+     */
+    private String resolvePlayerNameCase(String playerName) {
+        Optional<Player> online = proxy.getPlayer(playerName);
+        if (online.isPresent()) {
+            return online.get().getUsername();
+        }
+
+        try {
+            LastSeenEntry entry = storage.getLastSeenByName(playerName);
+            if (entry != null) {
+                return entry.getName();
+            }
+        } catch (SQLException e) {
+            logger.warn("Failed to look up player '{}'", playerName, e);
+        }
+        return playerName.trim();
+    }
+
+    /**
+     * Sets the server aliases from config: raw server name → display text.
+     * Replaces anything configured before.
+     */
+    public void setServerAliases(Map<String, String> aliases) {
+        serverAliases.clear();
+        legacyServerAliases.clear();
+        if (aliases != null) {
+            serverAliases.putAll(aliases);
         }
     }
 
-    /** Sets the set of server names that have localized aliases. */
-    public void setServerAliases(Collection<String> aliases) {
+    /**
+     * Legacy alias format — a plain list of server names whose display text is
+     * taken from {@code server-alias-&lt;name&gt;} in the language files.
+     * Kept so configs written before 2.3.0 keep working; prefer
+     * {@link #setServerAliases(Map)}.
+     */
+    public void setLegacyServerAliases(Collection<String> serverNames) {
         serverAliases.clear();
-        if (aliases != null) {
-            serverAliases.addAll(aliases);
+        legacyServerAliases.clear();
+        if (serverNames != null) {
+            for (String name : serverNames) {
+                if (name != null && !name.isBlank()) {
+                    legacyServerAliases.add(name.trim());
+                }
+            }
         }
     }
 
@@ -627,16 +874,22 @@ public class ReportManager {
         return builder.build();
     }
 
-    /** Resolves a raw server name to its localized display alias, or returns the raw name if no alias is configured. */
+    /**
+     * Resolves a raw server name to its display alias from config.
+     * Falls back to the language file for legacy (list-form) configs, and to
+     * the raw name when no alias is configured.
+     */
     private String resolveServerName(String raw) {
         if (raw == null) return "N/A";
-        if (serverAliases.contains(raw)) {
-            String alias = languageManager.getMessage("server-alias-" + raw);
-            if (alias != null && !alias.startsWith("<red>")) {
-                return alias;
+
+        String alias = serverAliases.get(raw);
+        if (alias == null && legacyServerAliases.contains(raw)) {
+            String key = "server-alias-" + raw;
+            if (languageManager.hasMessage(key)) {
+                alias = languageManager.getMessage(key);
             }
         }
-        return raw;
+        return alias != null && !alias.isBlank() ? alias : raw;
     }
 
     // ── Message building ─────────────────────────────────────

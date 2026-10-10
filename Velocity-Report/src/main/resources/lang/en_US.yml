@@ -6,22 +6,19 @@
 #               {reported_server}, {reason}, {time}, {status},
 #               {page}, {total}, {count}, {handler_info}, {player},
 #               {target}, {input}, {handler}, {resolution}, {handled_at},
-#               {number}, {description}, {icon}, {name}
+#               {number}, {description}, {icon}, {name}, {hours}
 # ============================================================
 
 # ── General ─────────────────────────────────────────────────
 prefix: "<red>[Report]</red> "
-
-# ── Server Aliases ──────────────────────────────────────────
-server-alias-lobby: "&eLobby"
-server-alias-survival: "&aSurvival"
-server-alias-minigame: "&6Minigame"
 
 # ── Report related ──────────────────────────────────────────
 report-sent: "<green>Your report against <yellow>{reported}</yellow> has been submitted. Thank you for your feedback!</green>"
 report-cooldown: "<red>Please wait {time} seconds before submitting another report.</red>"
 self-report: "<red>You cannot report yourself.</red>"
 player-not-found: "<red>Player '{player}' not found.</red>"
+report-offline-too-long: "<red><white>{player}</white> has been offline for more than {hours} hours and can no longer be reported.</red>"
+report-offline-disabled: "<red><white>{player}</white> is not online, and offline reports are disabled on this server.</red>"
 
 # ── Listing & Detail ────────────────────────────────────────
 no-reports: "<yellow>There are no pending reports.</yellow>"
@@ -72,6 +69,34 @@ command-reportcd-reopen-usage: "<gold>Usage: /reportcd reopen <id></gold>"
 command-invalid-id: "<red>Invalid report ID: {input}</red>"
 command-reload-success: "<green>Configuration reloaded successfully.</green>"
 command-reload-fail: "<red>Configuration reload failed. Check console for details.</red>"
+
+# ── Staff list command /reportstaff ─────────────────────────
+command-staff-usage: "<gold>Usage: /reportstaff <add|remove|list> [player]</gold>"
+staff-list-header: "<gold>Staff list ({count} entries)</gold>"
+staff-list-config: "<gray>config.yml:</gray> <white>{names}</white>"
+staff-list-added: "<gray>staff-users.yml:</gray> <white>{names}</white>"
+staff-list-empty-entry: "(empty)"
+staff-list-hint: "<gray>Add with <yellow>/reportstaff add <player></yellow>, remove with <yellow>/reportstaff remove <player></yellow>.</gray>"
+staff-add-success: "<green><white>{player}</white> added to the staff list — {count} entries now.</green>"
+staff-add-already: "<yellow><white>{player}</white> is already on the staff list.</yellow>"
+staff-save-failed: "<red>Failed to write staff-users.yml — check the console log.</red>"
+staff-remove-success: "<green><white>{player}</white> removed from the staff list.</green>"
+staff-remove-from-config: "<yellow><white>{player}</white> is defined in staff-users in config.yml — please remove it there.</yellow>"
+staff-remove-not-found: "<yellow><white>{player}</white> is not on the staff list.</yellow>"
+
+# ── Admin entry point /reportadmin ──────────────────────────
+command-reportadmin-help: |
+  <gold>===== /reportadmin — staff commands =====</gold>
+  <newline><yellow>/reportadmin reload</yellow> <gray>— reload config and language files</gray>
+  <newline><yellow>/reportadmin list [page]</yellow> <gray>— pending reports</gray>
+  <newline><yellow>/reportadmin view <id></yellow> <gray>— report details</gray>
+  <newline><yellow>/reportadmin close <id> [note]</yellow> <gray>— close a report</gray>
+  <newline><yellow>/reportadmin resolve|reopen <id></yellow> <gray>— mark resolved / pending</gray>
+  <newline><yellow>/reportadmin history [page] [player]</yellow> <gray>— full report history</gray>
+  <newline><yellow>/reportadmin staff add|remove|list [player]</yellow> <gray>— staff list</gray>
+  <newline><gray>All of these still work under their original names (/reports, /reportview, /reportstaff, …); reloading is only available here.</gray>
+command-reportadmin-usage-id: "<gold>Usage: /reportadmin <view|close|resolve|reopen> <id> [note]</gold>"
+command-reportadmin-unknown: "<red>Unknown subcommand: {input}. Type /reportadmin for help.</red>"
 
 # ── Report History ──────────────────────────────────────────
 report-history-player-not-found: "<yellow>No reports found for <white>{player}</white>.</yellow>"

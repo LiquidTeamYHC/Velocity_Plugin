@@ -6,22 +6,19 @@
 #         {reported_server}, {reason}, {time}, {status},
 #         {page}, {total}, {count}, {handler_info}, {player},
 #         {target}, {input}, {handler}, {resolution}, {handled_at},
-#         {number}, {description}, {icon}, {name}
+#         {number}, {description}, {icon}, {name}, {hours}
 # ============================================================
 
 # ── 通用 ────────────────────────────────────────────────────
 prefix: "<red>[举报]</red> "
-
-# ── 服务器别名 ──────────────────────────────────────────────
-server-alias-lobby: "&e登录服"
-server-alias-survival: "&a生存服"
-server-alias-minigame: "&6小游戏"
 
 # ── 举报相关 ────────────────────────────────────────────────
 report-sent: "<green>你对 <yellow>{reported}</yellow> 的举报已提交，感谢反馈。</green>"
 report-cooldown: "<red>请等待 {time} 秒后再提交举报。</red>"
 self-report: "<red>你不能举报自己。</red>"
 player-not-found: "<red>玩家 '{player}' 未找到。</red>"
+report-offline-too-long: "<red>玩家 <white>{player}</white> 已离线超过 {hours} 小时，无法举报。</red>"
+report-offline-disabled: "<red>玩家 <white>{player}</white> 当前不在线，且本服未开启离线举报。</red>"
 
 # ── 列表与详情 ──────────────────────────────────────────────
 no-reports: "<yellow>当前没有待处理的举报。</yellow>"
@@ -72,6 +69,34 @@ command-reportcd-reopen-usage: "<gold>用法: /reportcd reopen <举报编号></g
 command-invalid-id: "<red>无效的举报编号: {input}</red>"
 command-reload-success: "<green>配置已重载。</green>"
 command-reload-fail: "<red>配置重载失败，请查看控制台日志。</red>"
+
+# ── 管理员名单命令 /reportstaff ─────────────────────────────
+command-staff-usage: "<gold>用法: /reportstaff <add|remove|list> [玩家]</gold>"
+staff-list-header: "<gold>管理员名单（共 {count} 人）</gold>"
+staff-list-config: "<gray>config.yml:</gray> <white>{names}</white>"
+staff-list-added: "<gray>staff-users.yml:</gray> <white>{names}</white>"
+staff-list-empty-entry: "（空）"
+staff-list-hint: "<gray>用 <yellow>/reportstaff add <玩家></yellow> 添加、<yellow>/reportstaff remove <玩家></yellow> 移除。</gray>"
+staff-add-success: "<green>已把 <white>{player}</white> 加入管理员名单，现在共 {count} 人。</green>"
+staff-add-already: "<yellow><white>{player}</white> 已经在管理员名单里了。</yellow>"
+staff-save-failed: "<red>写入 staff-users.yml 失败，请查看控制台日志。</red>"
+staff-remove-success: "<green>已把 <white>{player}</white> 移出管理员名单。</green>"
+staff-remove-from-config: "<yellow><white>{player}</white> 定义在 config.yml 的 staff-users 里，请到那里删除。</yellow>"
+staff-remove-not-found: "<yellow>管理员名单里没有 <white>{player}</white>。</yellow>"
+
+# ── 管理总命令 /reportadmin ─────────────────────────────────
+command-reportadmin-help: |
+  <gold>===== /reportadmin 管理命令 =====</gold>
+  <newline><yellow>/reportadmin reload</yellow> <gray>— 重载配置与语言文件</gray>
+  <newline><yellow>/reportadmin list [页码]</yellow> <gray>— 待处理举报列表</gray>
+  <newline><yellow>/reportadmin view <编号></yellow> <gray>— 查看举报详情</gray>
+  <newline><yellow>/reportadmin close <编号> [处理说明]</yellow> <gray>— 关闭举报</gray>
+  <newline><yellow>/reportadmin resolve|reopen <编号></yellow> <gray>— 标记已处理 / 未处理</gray>
+  <newline><yellow>/reportadmin history [页码] [玩家]</yellow> <gray>— 全部举报历史</gray>
+  <newline><yellow>/reportadmin staff add|remove|list [玩家]</yellow> <gray>— 管理员名单</gray>
+  <newline><gray>上面这些命令也可以按老名字单独使用（/reports、/reportview、/reportstaff…）；重载只有这一个入口。</gray>
+command-reportadmin-usage-id: "<gold>用法: /reportadmin <view|close|resolve|reopen> <编号> [处理说明]</gold>"
+command-reportadmin-unknown: "<red>未知子命令: {input}，输入 /reportadmin 查看帮助。</red>"
 
 # ── 举报历史 ────────────────────────────────────────────────
 report-history-player-not-found: "<yellow>未找到 <white>{player}</white> 相关的举报记录。</yellow>"
