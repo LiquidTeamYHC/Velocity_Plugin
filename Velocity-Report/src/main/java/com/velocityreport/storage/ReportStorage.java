@@ -1,5 +1,6 @@
 package com.velocityreport.storage;
 
+import com.velocityreport.model.LastSeenEntry;
 import com.velocityreport.model.Report;
 import com.velocityreport.model.Report.Status;
 
@@ -47,6 +48,21 @@ public interface ReportStorage {
 
     /** Count of reports where the given player is reporter OR reported. */
     int getReportCountByPlayerName(String playerName) throws SQLException;
+
+    // ── Last-seen tracking (offline report support) ───────────
+
+    /**
+     * Inserts or updates a player's last-seen record.
+     *
+     * @param serverName the server the player was on, or null to keep the stored one
+     */
+    void updateLastSeen(UUID playerUuid, String playerName, long timestamp, String serverName) throws SQLException;
+
+    /** Looks a player up by name (case-insensitive), or null if they were never seen. */
+    LastSeenEntry getLastSeenByName(String playerName) throws SQLException;
+
+    /** Names seen since the given timestamp whose name starts with the given prefix, newest first. */
+    List<String> getNamesSeenSince(long since, String prefix, int limit) throws SQLException;
 
     /** Closes the database connection. */
     void close();

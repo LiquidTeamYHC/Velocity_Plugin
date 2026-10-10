@@ -1,5 +1,6 @@
 package com.velocityreport.storage;
 
+import com.velocityreport.model.LastSeenEntry;
 import com.velocityreport.model.Report;
 import com.velocityreport.model.Report.Status;
 import com.zaxxer.hikari.HikariConfig;
@@ -81,6 +82,17 @@ public class MySQLReportStorage implements ReportStorage {
                     handler_name          VARCHAR(64),
                     resolution            TEXT,
                     handled_at            BIGINT
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """);
+
+            // Last-seen records — one row per player, used for offline reports
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS player_last_seen (
+                    player_uuid  VARCHAR(36) PRIMARY KEY,
+                    player_name  VARCHAR(64) NOT NULL,
+                    seen_at      BIGINT NOT NULL,
+                    last_server  VARCHAR(128),
+                    INDEX idx_player_last_seen_name (player_name)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                 """);
         }
@@ -269,6 +281,78 @@ public class MySQLReportStorage implements ReportStorage {
             }
         }
         return 0;
+    }
+
+    // ── Last-seen tracking ───────────────────────────────────
+
+    @Override
+    public void updateLastSeen(UUID playerUuid, String playerName,
+                               long timestamp, String serverName) throws SQLException {
+        String sql = """
+            INSERT INTO player_last_seen (player_uuid, player_name, seen_at, last_server)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                player_name = VALUES(player_name),
+                seen_at     = VALUES(seen_at),
+                last_server = COALESCE(VALUES(last_server), last_server);
+            """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, playerUuid.toString());
+            ps.setString(2, playerName);
+            ps.setLong(3, timestamp);
+            ps.setString(4, serverName);
+            ps.executeUpdate();
+        }
+    }
+
+    @Override
+    public LastSeenEntry getLastSeenByName(String playerName) throws SQLException {
+        String sql = """
+            SELECT player_uuid, player_name, seen_at, last_server
+            FROM player_last_seen WHERE LOWER(player_name) = LOWER(?) LIMIT 1;
+            """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, playerName);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new LastSeenEntry(
+                        UUID.fromString(rs.getString("player_uuid")),
+                        rs.getString("player_name"),
+                        rs.getLong("seen_at"),
+                        rs.getString("last_server"));
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public List<String> getNamesSeenSince(long since, String prefix, int limit) throws SQLException {
+        List<String> names = new ArrayList<>();
+        String sql = """
+            SELECT player_name FROM player_last_seen
+            WHERE seen_at > ? AND player_name LIKE ? ESCAPE '\\'
+            ORDER BY seen_at DESC LIMIT ?;
+            """;
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, since);
+            ps.setString(2, escapeLike(prefix) + "%");
+            ps.setInt(3, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    names.add(rs.getString("player_name"));
+                }
+            }
+        }
+        return names;
+    }
+
+    /** Escapes LIKE wildcards so that a name prefix matches literally. */
+    private static String escapeLike(String input) {
+        return input.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**
