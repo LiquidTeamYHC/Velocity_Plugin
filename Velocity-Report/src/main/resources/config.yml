@@ -3,7 +3,8 @@
 # ============================================================
 # 占位符 / Placeholders: {reporter}, {reported}, {id}, {server},
 #                        {reported_server}, {reason}, {time}, {status},
-#                        {page}, {total}, {count}, {handler_info}, {player}
+#                        {page}, {total}, {count}, {handler_info}, {player},
+#                        {hours}
 # 消息格式: MiniMessage
 # ============================================================
 
@@ -46,6 +47,16 @@ database:
 # Report cooldown (seconds), set to 0 to disable
 cooldown-seconds: 60
 
+# ── 离线举报时间窗口 / Offline report window ───────────────
+# 玩家离线后仍可被举报的时长（小时）。
+# 在线玩家不受限制；离线玩家只在最后离线时间未超过该窗口时可被举报。
+# 设为 0 关闭离线举报（此时只有在线玩家能被举报）。
+# Tab 补全也会列出窗口内的离线玩家。
+# How long after their last logout a player can still be reported (hours).
+# Online players are always reportable; offline players only while their
+# last-seen time is inside this window. Set to 0 to disable offline reports.
+offline-report-window-hours: 24
+
 # ── 举报原因模板 / Report Reasons ──────────────────────────
 # 玩家输入 /report <玩家> 时将显示点击选择菜单
 # 显示名称和描述在语言文件中定义 (reason-<id>, reason-<id>-desc)
@@ -68,21 +79,33 @@ report-reasons:
 # Reports per page
 reports-per-page: 10
 
-# 管理员名单（不区分大小写）
+# ── 管理员名单 / Staff usernames ──────────────────────────
+# 不区分大小写；默认留空
 # 未安装 LuckPerms 等权限插件时，在此处列出管理员用户名即可看到举报通知和后台命令
-# Staff usernames (case-insensitive)
-# Used when no permission plugin (like LuckPerms) is installed
-staff-users:
-  - "YuHongChen"
-  - "admin2"
+#   写法示例: staff-users: ["YuHongChen", "admin2"]
+# 游戏内添加/查看：/reportstaff add|remove|list <玩家>
+#   命令添加的名字写在 staff-users.yml 里，与这里合并生效（本文件不会被插件改写）
+# 装了权限插件的话保持留空即可，用权限节点控制
+# Case-insensitive, empty by default.
+# Used when no permission plugin (like LuckPerms) is installed.
+# Example: staff-users: ["YuHongChen", "admin2"]
+# In game: /reportstaff add|remove|list <player> — written to staff-users.yml
+# and merged with this list (this file is never rewritten by the plugin).
+staff-users: []
 
-# 服务器别名 / Server Aliases
-# 需要显示别名的服务器列表（显示名称在语言文件中定义：server-alias-<name>）
-# List servers that should show a localized alias (display text in language files: server-alias-<name>)
+# ── 服务器别名 / Server Aliases ────────────────────────────
+# 把原始子服名显示成更好认的名字，例如 lobby → 登录服
+# 格式: 子服名: "显示文本"
+#   - 子服名必须与 Velocity 里的服务器名完全一致（区分大小写）
+#   - 显示文本支持 & 颜色代码（&e、&a、&l 等）和 MiniMessage 标签
+#   - 不想显示别名就把它删掉；整段清空表示不做任何别名
+# Display text shown instead of the raw server name.
+# The key must match the server name in Velocity exactly (case-sensitive);
+# the value supports & color codes and MiniMessage tags.
 server-aliases:
-  - lobby
-  - survival
-  - minigame
+  lobby: "&e登录服"
+  survival: "&a生存服"
+  minigame: "&6小游戏"
 
 # ── 消息配置 / Messages ────────────────────────────────────
 # 此处可覆盖语言文件中的特定消息，优先级高于语言文件
@@ -91,6 +114,7 @@ server-aliases:
 #
 # 可用的消息键 / Available message keys:
 # prefix, report-sent, report-cooldown, self-report, player-not-found,
+# report-offline-too-long, report-offline-disabled,
 # no-reports, report-list-header, report-entry, report-detail,
 # report-closed, staff-notify, staff-join-notify, invalid-report-id, already-closed
 #
